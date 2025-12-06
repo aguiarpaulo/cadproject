@@ -1,0 +1,19 @@
+graph TD
+    subgraph "Fluxo de Geração de CAD"
+        direction LR
+
+        A[Input: Descrição em Linguagem Natural] --> B{Orchestrator};
+
+        subgraph "Pipeline de Agentes"
+            direction TB
+            B --> C(Agente Parser);
+            C -- "Dados Estruturados" --> D(Agente Planner);
+            D -- "Plano de Desenho" --> E(Agente Geometry);
+            E -- "Objetos Geométricos" --> F(Agente Generator);
+        end
+
+        F --> G[Output: Arquivo .dxf];
+    end
+
+    style A fill:#f9f,stroke:#333,stroke-width:2px
+    style G fill:#ccf,stroke:#333,stroke-width:2px

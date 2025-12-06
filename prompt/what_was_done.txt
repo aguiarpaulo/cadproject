@@ -1,0 +1,12 @@
+**requirements.txt`**: Lists all the Python packages required to run the project.
+
+create_template.py: A script to generate the base template.dxf file with predefined layers and blocks.
+src/schemas/data_models.py: Contains the Pydantic models (RawInputSchema, StructuredPlanSchema, FinalGeometrySchema) that define the data structure for communication between agents.
+src/agents/: This directory holds the core logic for each agent:
+parser.py: A mock agent to parse natural language into a structured format.
+planner.py: Validates the parsed data and creates a logical drawing plan.
+geometry.py: Performs the geometric calculations to translate the plan into coordinates.
+generator.py: Uses the ezdxf library to write the final .dxf file.
+src/core/orchestrator.py: Manages the end-to-end workflow, passing data between agents and handling the interactive clarification loop.
+src/main.py: The main entry point of the application that you can run to start the interactive agent.
+The system is now ready to be tested. You can start by installing the dependencies and then running the main application.

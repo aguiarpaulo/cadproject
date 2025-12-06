@@ -1,0 +1,12 @@
+# Core dependencies
+ezdxf
+numpy
+pydantic
+
+# LLM and orchestration
+# Using google-generativeai as a placeholder for the Gemini API
+google-generativeai
+python-dotenv
+
+# Optional for more complex geometric operations
+# shapely
