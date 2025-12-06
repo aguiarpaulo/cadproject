@@ -1,0 +1,17 @@
+1) LangChain + Python + ezdxf (100% grátis)
+
+👉 Melhor opção para você.
+Permite criar um agente que:
+
+lê o input em linguagem natural
+
+interpreta medidas, quantidade de tomadas, elementos do cômodo
+
+gera automaticamente um arquivo DXF (compatível com AutoCAD)
+
+aplica um template fixo (layers, estilos, blocos)
+
+salva ou devolve o arquivo pronto
+
+Biblioteca usada para gerar desenhos:
+ezdxf → open-source, robusta e compatível com AutoCAD.

@@ -1,0 +1,77 @@
+PROMPT:
+
+Quero criar um agente de IA que transforma descrições em linguagem natural em arquivos AutoCAD (DXF ou DWG) utilizando um template fixo. Preciso que você gere para mim os melhores arquivos de documentação inicial possíveis, incluindo:
+
+PRD (Product Requirement Document) completo, cobrindo:
+
+visão do produto
+
+problema e oportunidade
+
+público-alvo
+
+requisitos funcionais
+
+requisitos não funcionais
+
+critérios de sucesso
+
+arquitetura proposta
+
+riscos e limitações
+
+KPIs
+
+roadmap inicial
+
+Arquivo de Context (Context Document) extremamente detalhado, contendo:
+
+descrição do agente
+
+comportamento esperado
+
+fluxo de trabalho do input ao arquivo DXF
+
+instruções sobre como interpretar medidas, áreas, altura, largura
+
+regras para inserir objetos como tomadas, portas, janelas e elementos estruturais
+
+regras de template (layers, estilos de linha, blocos)
+
+regras geométricas (coordenadas, layouts, cotas)
+
+regras de precisão, tolerâncias e validações
+
+restrições (ex.: NBR de tomadas, dimensões mínimas)
+
+Documento de arquitetura técnica, contendo:
+
+diagrama de agentes
+
+papel de cada agente (ex.: Parser, Planner, Geometry Engine, AutoCAD Generator)
+
+ferramentas externas utilizadas (ex.: ezdxf, AutoCAD template loader)
+
+fluxo LangChain ou AutoGen
+
+JSON schemas intermediários
+
+documentação do pipeline completo
+
+Especificação do modelo de dados usada pelo agente, incluindo:
+
+schema do JSON de entrada
+
+schema do JSON transformado
+
+schema final para geração do DXF
+
+exemplos completos
+
+edge cases
+
+Exemplos reais de prompts + outputs esperados para garantir alinhamento perfeito.
+
+Tudo isso deve ser produzido com nível de qualidade profissional, como se fosse para um time de engenharia entregar o produto final.
+
+Gere todos esses arquivos da forma mais completa e detalhada possível, organizados e explicados de maneira clara, limpa e altamente profissional.
