@@ -1,5 +1,12 @@
+<<<<<<< HEAD
 .venv
 .env
 __pycache__/
 *.pyc
 *.dxf
+=======
+.venv
+.env
+__pycache__/
+*.pyc
+>>>>>>> 56080d7ad81cd7142cc5d6f7c0eab56befadc55d
