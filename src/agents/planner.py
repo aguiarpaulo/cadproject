@@ -46,12 +46,14 @@ class PlannerAgent:
                 # Update offset for the next room
                 offset_x += dims['width'] + settings.default_wall_thickness
 
-                # Plan objects for the current room
+                # Plan objects for the current room (respecting quantity)
                 for raw_obj in env.objects:
-                    planned_obj = self._plan_object(raw_obj, room)
-                    if isinstance(planned_obj, str): # It's a question
-                        return planned_obj
-                    planned_objects.append(planned_obj)
+                    quantity = raw_obj.quantity or 1
+                    for _ in range(quantity):
+                        planned_obj = self._plan_object(raw_obj, room)
+                        if isinstance(planned_obj, str): # It's a question
+                            return planned_obj
+                        planned_objects.append(planned_obj)
             
             plan = StructuredPlanSchema(
                 drawing_settings=settings,
@@ -84,13 +86,15 @@ class PlannerAgent:
         """Converts a RawObject into a PlannedObject with placement details."""
 
         # --- Type and Size ---
-        obj_type = "UNKNOWN"
-        if "porta" in raw_obj.type:
+        obj_type_str = (raw_obj.type or "").lower()
+        if "porta" in obj_type_str:
             obj_type = "DOOR"
-        elif "janela" in raw_obj.type:
+        elif "janela" in obj_type_str:
             obj_type = "WINDOW"
-        elif "tomada" in raw_obj.type:
+        elif "tomada" in obj_type_str:
             obj_type = "POWER_SOCKET"
+        else:
+            return f"Tipo de objeto não reconhecido: '{raw_obj.type}'. Tipos suportados: porta, janela, tomada."
 
         # Use the width from the parser if available, otherwise extract/default it
         width = raw_obj.width
@@ -106,31 +110,35 @@ class PlannerAgent:
                     width = 0.1  # Default outlet width
 
         # --- Placement ---
-        wall_id = self._find_target_wall_id(raw_obj.description, room)
+        # Try structured positioning data first, then fall back to description text
+        pos = raw_obj.positioning
+        wall_id = None
+        if pos and pos.on_wall:
+            wall_id = self._find_target_wall_id(pos.on_wall, room)
         if not wall_id:
-            # Fallback to the raw positioning info if available
-            if raw_obj.positioning and raw_obj.positioning.on_wall:
-                 wall_id = self._find_target_wall_id(raw_obj.positioning.on_wall, room)
+            wall_id = self._find_target_wall_id(raw_obj.description, room)
+        if not wall_id:
+            # Smart default: doors on the longer wall, windows on shorter wall
+            wall_id = self._default_wall_id(obj_type, room)
+            print(f"No wall specified for '{raw_obj.description}', defaulting to '{wall_id}'.")
 
-            if not wall_id:
-                return f"Não consegui identificar em qual parede colocar o objeto '{raw_obj.description}'. Por favor, especifique a parede (ex: 'na parede maior')."
-
-        # Check for positioning keywords in the description or the parsed object
-        is_centered = "centralizad" in raw_obj.description or (raw_obj.positioning and raw_obj.positioning.centered)
-        is_from_corner = ("do canto" in raw_obj.description) or (raw_obj.positioning and raw_obj.positioning.distance is not None)
+        # Check for positioning - prefer structured data over description text
+        is_centered = (pos and pos.centered) or "centralizad" in raw_obj.description
+        is_from_corner = (pos and pos.distance is not None) or "do canto" in raw_obj.description
 
         if is_centered:
             pos_type = "CENTERED"
             dist, corner = None, None
         elif is_from_corner:
             pos_type = "FROM_CORNER"
-            
-            dist = raw_obj.positioning.distance if raw_obj.positioning else self._extract_distance_from_desc(raw_obj.description)
+
+            dist = (pos.distance if pos else None) or self._extract_distance_from_desc(raw_obj.description)
             if dist is None:
                 return f"Não consegui identificar a distância do canto para '{raw_obj.description}'."
 
-            # Check for corner reference, including in the 'from_' field
-            ref_text = raw_obj.description + (raw_obj.positioning.from_ or "")
+            # Check for corner reference
+            from_text = (pos.from_ if pos else None) or ""
+            ref_text = raw_obj.description + " " + from_text
             if "esquerdo" in ref_text:
                 corner = "START"
             elif "direito" in ref_text:
@@ -138,8 +146,9 @@ class PlannerAgent:
             else:
                 return f"O objeto '{raw_obj.description}' está a {dist}m de qual canto (esquerdo ou direito)?"
         else:
-            # If no position is specified, ask for clarification.
-            return f"Onde na parede '{wall_id}' devo posicionar '{raw_obj.description}'? (ex: 'centralizada', 'a 1m do canto esquerdo')."
+            # If no position is specified, default to centered
+            pos_type = "CENTERED"
+            dist, corner = None, None
 
         placement = ObjectPlacement(
             on_wall_id=wall_id,
@@ -149,7 +158,7 @@ class PlannerAgent:
         )
 
         # Generate a block name
-        block_name = f"{raw_obj.type.lower()}_{int(width*100)}" if width else raw_obj.type.lower()
+        block_name = f"{obj_type_str.lower()}_{int(width*100)}" if width else obj_type_str.lower()
         if obj_type == "POWER_SOCKET":
             block_name = "tomada_dupla"
 
@@ -160,26 +169,55 @@ class PlannerAgent:
             placement=placement
         )
 
+    def _default_wall_id(self, obj_type: str, room: Room) -> str:
+        """Returns a sensible default wall when no wall is specified."""
+        w = room.internal_dimensions.width
+        l = room.internal_dimensions.length
+        if obj_type == "DOOR":
+            # Doors default to the longer wall (bottom if w >= l, else right)
+            return f"{room.id}_wall_0" if w >= l else f"{room.id}_wall_1"
+        elif obj_type == "WINDOW":
+            # Windows default to the shorter wall
+            return f"{room.id}_wall_1" if w >= l else f"{room.id}_wall_0"
+        else:
+            # Sockets etc. default to bottom wall
+            return f"{room.id}_wall_0"
+
     def _find_target_wall_id(self, description: str, room: Room) -> str | None:
         """Finds a wall ID based on simple text cues."""
+        if not description:
+            return None
+
+        desc = description.lower()
         w, l = room.internal_dimensions.width, room.internal_dimensions.length
-        
+
         # Wall IDs: 0=bottom, 1=right, 2=top, 3=left
-        if "parede maior" in description:
+        if "parede maior" in desc:
             return f"{room.id}_wall_0" if w >= l else f"{room.id}_wall_1"
-        if "parede menor" in description:
+        if "parede menor" in desc:
             return f"{room.id}_wall_1" if w > l else f"{room.id}_wall_0"
-        if "parede de baixo" in description or "parede inferior" in description:
+        if "parede de baixo" in desc or "parede inferior" in desc:
             return f"{room.id}_wall_0"
-        if "parede da direita" in description:
+        if "parede da direita" in desc or "parede direita" in desc:
             return f"{room.id}_wall_1"
-        if "parede de cima" in description or "parede superior" in description:
+        if "parede de cima" in desc or "parede superior" in desc:
             return f"{room.id}_wall_2"
-        if "parede da esquerda" in description:
+        if "parede da esquerda" in desc or "parede esquerda" in desc:
             return f"{room.id}_wall_3"
-        
-        # Fallback or if no description is provided
-        return f"{room.id}_wall_0" # Default to bottom wall
+        # "parede externa" / "parede de fundo" → treat as bottom wall (front-facing)
+        if "parede externa" in desc or "parede de fundo" in desc or "parede frontal" in desc:
+            return f"{room.id}_wall_0"
+
+        # Try to match wall by dimension mentioned (e.g., "parede de 6m", "parede de 4 metros")
+        dim_match = re.search(r"parede\s+(?:de\s+)?(\d+([,.]\d+)?)\s*(?:m|metros?)", desc)
+        if dim_match:
+            dim_val = self._str_to_float(dim_match.group(1))
+            if abs(dim_val - w) < 0.01:
+                return f"{room.id}_wall_0"  # Bottom (width wall)
+            elif abs(dim_val - l) < 0.01:
+                return f"{room.id}_wall_1"  # Right (length wall)
+
+        return None
 
     def _str_to_float(self, s: str) -> float:
         """Converts a string with either a '.' or ',' decimal separator to a float."""

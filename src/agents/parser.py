@@ -104,19 +104,19 @@ class ParserAgent:
           "environments": [
             {{
               "name": "string (the name of the room, e.g., 'sala', 'cozinha', 'quarto')",
-              "description": "string (the full, original description of the room and its dimensions, e.g., 'uma sala de 6 por 4 metros')",
+              "description": "string (MUST include the room dimensions, e.g., 'uma sala de 6 por 4 metros')",
               "objects": [
                 {{
                   "type": "string (the type of object, e.g., 'porta', 'janela', 'tomada')",
-                  "description": "string (the full, original description of the object, e.g., 'uma porta de 80cm centralizada na parede maior')",
-                  "quantity": "integer (the number of identical objects, e.g., 2)",
+                  "description": "string (full description including wall and positioning, e.g., 'uma porta de 80cm centralizada na parede maior')",
+                  "quantity": "integer (the number of identical objects, default 1)",
                   "width": "float (the width of the object in the project's units)",
                   "height": "float (the height of the object, optional)",
                   "positioning": {{
-                    "on_wall": "string (e.g., 'parede maior', 'parede de 4 metros', 'qualquer parede')",
+                    "on_wall": "string (REQUIRED - which wall, e.g., 'parede maior', 'parede menor', 'parede de 4 metros', 'parede da esquerda', 'parede da direita', 'parede de baixo', 'parede de cima')",
                     "centered": "boolean (true if the object is centered on the wall)",
                     "distance": "float (the distance from a reference point)",
-                    "from_": "string (the reference point, e.g., 'canto esquerdo', 'centro')"
+                    "from_": "string (the reference point, e.g., 'canto esquerdo', 'canto direito')"
                   }}
                 }}
               ]
@@ -125,19 +125,27 @@ class ParserAgent:
         }}
         ```
 
-        **Object Details Extraction:**
-        - **quantity**: If the user mentions multiple identical items (e.g., "2 portas", "três janelas"), capture this number. Default is 1.
-        - **width/height**: Extract dimensions. Assume the unit is the one defined in `settings.units`. If a different unit is explicitly mentioned (e.g., "80cm" when `settings.units` is "metros"), try to convert it to the `settings.units` or at least capture the numerical value if conversion is not straightforward.
-        - **positioning**:
-          - `on_wall`: Identify which wall the object is on. Use descriptive terms from the prompt ("parede maior", "parede menor", "parede de 6m").
-          - `centered`: Set to `true` if the prompt says "centralizada" or "no meio da parede".
-          - `distance`: Capture the numerical value of the distance from a reference point (e.g., "a 1 metro" -> 1.0, "a 20 cm" -> 0.2 if units are meters).
-          - `from`: Capture the reference point (e.g., "canto esquerdo", "canto", "lado esquerdo", "centro").
+        **CRITICAL RULES:**
+
+        1. **`positioning.on_wall` is REQUIRED for every object.** You MUST always specify which wall an object belongs to. Use one of these standard terms:
+           - "parede maior" (the longer wall of the room)
+           - "parede menor" (the shorter wall of the room)
+           - "parede de baixo", "parede de cima", "parede da esquerda", "parede da direita"
+           - "parede de Xm" or "parede de X metros" (wall by its dimension)
+           If the user does NOT specify a wall, use "parede maior" as the default for doors and "parede menor" for windows.
+
+        2. **`positioning.centered`**: Set to `true` if the user says "centralizada", "no centro", "no meio". If the user does not specify positioning, default to `true`.
+
+        3. **`description` for environments**: MUST always contain the room dimensions in the format "NxN metros" or "N por N metros". Copy the dimensions from the user input.
+
+        4. **`width`**: Always extract the object width as a float in the project's unit. Convert cm to meters (divide by 100). For example, "80cm" = 0.8, "1,5m" = 1.5.
+
+        5. **`description` for objects**: Include ALL placement information from the user input (wall, positioning, distance).
 
         **Example:**
 
         *User Request:*
-        "Uma sala retangular de 5x4 metros. Na parede maior, adicione 2 portas de 80cm, cada uma a 1 metro do canto mais próximo. Adicione também uma tomada centralizada em cada uma das paredes menores."
+        "Quero um apartamento com sala de 5x4 metros com porta de 80cm e janela de 1.5m centralizada, e um quarto de 3x3 com porta de 70cm"
 
         *Expected JSON Output:*
         ```json
@@ -146,25 +154,41 @@ class ParserAgent:
             "environments": [
                 {{
                     "name": "sala",
-                    "description": "Uma sala retangular de 5x4 metros",
+                    "description": "sala de 5x4 metros",
                     "objects": [
                         {{
                             "type": "porta",
-                            "description": "2 portas de 80cm, cada uma a 1 metro do canto mais próximo",
-                            "quantity": 2,
+                            "description": "porta de 80cm na parede maior",
+                            "quantity": 1,
                             "width": 0.8,
                             "positioning": {{
                                 "on_wall": "parede maior",
-                                "distance": 1.0,
-                                "from_": "canto mais próximo"
+                                "centered": true
                             }}
                         }},
                         {{
-                            "type": "tomada",
-                            "description": "uma tomada centralizada em cada uma das paredes menores",
-                            "quantity": 2,
+                            "type": "janela",
+                            "description": "janela de 1.5m centralizada na parede menor",
+                            "quantity": 1,
+                            "width": 1.5,
                             "positioning": {{
-                                "on_wall": "paredes menores",
+                                "on_wall": "parede menor",
+                                "centered": true
+                            }}
+                        }}
+                    ]
+                }},
+                {{
+                    "name": "quarto",
+                    "description": "quarto de 3x3 metros",
+                    "objects": [
+                        {{
+                            "type": "porta",
+                            "description": "porta de 70cm na parede maior",
+                            "quantity": 1,
+                            "width": 0.7,
+                            "positioning": {{
+                                "on_wall": "parede maior",
                                 "centered": true
                             }}
                         }}
@@ -175,7 +199,7 @@ class ParserAgent:
         ```
 
         **Analysis of User Input:**
-        Now, analyze the following user request and convert it into the JSON format described above.
+        Now, analyze the following user request and convert it into the JSON format described above. Remember: every object MUST have `positioning.on_wall` filled in.
 
         **User Request:**
         "{text_input}"

@@ -1,4 +1,5 @@
 # Agent responsible for generating the DXF file
+import re
 import ezdxf
 from ezdxf.document import Drawing
 from ezdxf.layouts import Modelspace
@@ -82,6 +83,11 @@ class DXFGeneratorAgent:
             print(f"Drew LWPOLYLINE on layer '{geom.layer}' with {len(params.points)} points.")
         
         elif isinstance(params, BlockInsertParams):
+            # Ensure the block exists in the document before inserting
+            doc = msp.doc
+            if params.block_name not in doc.blocks:
+                self._create_block_from_name(doc, params.block_name)
+
             msp.add_blockref(
                 name=params.block_name,
                 insert=params.insertion_point,
@@ -95,7 +101,44 @@ class DXFGeneratorAgent:
             )
             print(f"Inserted block '{params.block_name}' on layer '{geom.layer}'.")
 
-        # Add other geometry types like LINEAR_DIM here in the future
+    def _create_block_from_name(self, doc: Drawing, block_name: str) -> None:
+        """
+        Dynamically creates a block definition based on its name pattern.
+        Supports: porta_XX, janela_XXX, tomada_dupla.
+        """
+        match = re.match(r"(porta|janela|tomada)_(\w+)", block_name)
+        if not match:
+            print(f"Warning: Unknown block pattern '{block_name}', creating empty block.")
+            doc.blocks.new(name=block_name)
+            return
+
+        obj_type, size_str = match.group(1), match.group(2)
+
+        if obj_type == "porta":
+            width_m = int(size_str) / 100.0
+            block = doc.blocks.new(name=block_name, base_point=(0, 0))
+            # Door panel (thin rectangle)
+            block.add_line((0, 0), (0, width_m))
+            block.add_line((0, width_m), (0.05, width_m))
+            block.add_line((0.05, width_m), (0.05, 0))
+            block.add_line((0.05, 0), (0, 0))
+            # Swing arc
+            block.add_arc(center=(0, 0), radius=width_m, start_angle=0, end_angle=90)
+            print(f"Created door block '{block_name}' (width={width_m}m).")
+
+        elif obj_type == "janela":
+            width_m = int(size_str) / 100.0
+            block = doc.blocks.new(name=block_name, base_point=(0, 0))
+            # Window symbol: two end marks + center line
+            block.add_line((0, -0.075), (0, 0.075))
+            block.add_line((width_m, -0.075), (width_m, 0.075))
+            block.add_line((0, 0), (width_m, 0))
+            print(f"Created window block '{block_name}' (width={width_m}m).")
+
+        elif obj_type == "tomada":
+            block = doc.blocks.new(name=block_name, base_point=(0, 0))
+            block.add_circle((0, 0), 0.05)
+            print(f"Created socket block '{block_name}'.")
 
     def _create_default_layers(self, doc: Drawing) -> None:
         """

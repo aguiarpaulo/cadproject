@@ -1,9 +1,9 @@
-.venv
+.venv/
 .env
 __pycache__/
 *.pyc
-.venv
-.env
-__pycache__/
-*.pyc
-*.dxf
+
+# DXF output files (but keep templates)
+output.dxf
+output - Copy.dxf
+!/templates/template.dxf
